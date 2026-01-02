@@ -4,6 +4,7 @@
 close all;
 clear;
 clc;
+rng(0);
 %% 参数初始化
 %参数
 car.v0_x = 15;                     %无人机的初始横向速度
@@ -106,20 +107,27 @@ end
 %% 画出轨迹曲线
 k = 1:ms;
 
-figure;hold on;
-subplot(121);
-plot(KF_State(1,:), KF_State(2,:), 'r-');
-legend('KF滤波的轨迹');
-axis([-50, 50, 0, 100]);
+figure;subplot(131);
+plot(actual_state(1,:),actual_state(2,:), 'r-'); hold on
+plot(sensor1_X, sensor1_Y, 'b-');hold on
+legend('actual','sensor1');
 xlabel('横坐标(cm)');ylabel('纵坐标(cm)');
-title('滤波轨迹');
+title('运动轨迹');axis([-40, 40, 0, 100]);
 
-subplot(122);hold on;
-plot(sensor1_X , sensor1_Y,'g-');
-plot(KF_State(1,:), KF_State(2,:), 'r-');
+subplot(132);
+plot(sensor1_X , sensor1_Y,'g-');hold on
+plot(KF_State(1,:), KF_State(2,:), 'r-');hold on
 plot(actual_state(1,:),actual_state(2,:),'b-');
 legend('未滤波的轨迹', 'KF滤波的轨迹', '实际轨迹');
 axis([-50, 50, 0, 100]);
-xlabel('横坐标(cm)');ylabel('横坐标(cm)');
-title('轨迹对比');
+xlabel('横坐标(cm)');ylabel('横坐标(cm)');title('轨迹对比');
 
+subplot(133);
+plot(KF_err);
+xlabel('time');ylabel('err');title('kf误差')
+%% 误差
+KF_err_sorted = sort(KF_err);
+disp('误差统计');
+disp(['mean: ',num2str(mean(KF_err_sorted)), ' m']);
+disp(['cep68: ', num2str(KF_err_sorted(ceil(length(KF_err_sorted) * 0.68))), ' m']);
+disp(['cep95: ', num2str(KF_err_sorted(ceil(length(KF_err_sorted) * 0.95))), ' m']);
