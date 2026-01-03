@@ -15,11 +15,11 @@ pred_state = A * prev_state;                                % 预测状态
 pred_P = A * P * A' + Q;                                    % 预测误差的协方差矩阵
 innov = Sensor_Meas - H * pred_state;
 
-if innov(1) > 3 || innov(2) > 3 || innov(3) > 2 || innov(4) > 2
-    State = prev_state;
-    disp('meansure err');
-    return;
-end
+% if innov(1) > 3 || innov(2) > 3 || innov(3) > 2 || innov(4) > 2
+%     State = prev_state;
+%     disp('meansure err');
+%     return;
+% end
 
 %% Update
 S = inv(H * pred_P * H' + R);                               % 矩阵求逆
