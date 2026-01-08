@@ -127,8 +127,7 @@ end
 R1 = diag([sensor1.X_noise, sensor1.Y_noise, sensor1.Vx_noise, sensor1.Vy_noise]); % 测量噪音的协方差矩阵
 R2 = diag([sensor2.X_noise, sensor2.Y_noise, sensor2.Vx_noise, sensor2.Vy_noise]); % 测量噪音的协方差矩阵
 
-P1 = 0.01 * eye(4); %eye(4)代表4阶单位矩阵，这里是对估计均方误差矩阵Pk赋初值 
-P2 = 0.01 * eye(4);
+P = 0.01 * eye(4); %eye(4)代表4阶单位矩阵，这里是对估计均方误差矩阵Pk赋初值 
 
 %% 卡尔曼滤波估计最优状态
 KF_State = [car.x0; 
@@ -138,10 +137,13 @@ KF_State = [car.x0;
 KF_err  = zeros(1, ms);
 DIR_err = zeros(1, ms);
 for k = 1:ms
+    [pred_state, P] = predict(P, A, Q, KF_State(:,k));
+
     Sensor_Meas1 = [sensor1_X(1,k);sensor1_Y(1,k);sensor1_Vx(1,k);sensor1_Vy(1,k)]; % 测量向量Zk  
-    [KF_State(:,k), P1]   = Track_KF(P1, A, C, Q, R1, KF_State(:,k), Sensor_Meas1);
-    Sensor_Meas2 = [sensor2_X(1,k);sensor2_Y(1,k);sensor2_Vx(1,k);sensor2_Vy(1,k)];   
-    [KF_State(:,k+1), P2] = Track_KF(P2, A, C, Q, R2, KF_State(:,k), Sensor_Meas2);
+    Sensor_Meas2 = [sensor2_X(1,k);sensor2_Y(1,k);sensor2_Vx(1,k);sensor2_Vy(1,k)];
+
+    [KF_State(:,k), P]   = update(P, C, Q, R1, pred_state, Sensor_Meas1);
+    [KF_State(:,k+1), P] = update(P, C, Q, R2, KF_State(:,k), Sensor_Meas2);
     
     KF_err(k) = norm(actual_state(1:2, k) - KF_State(1:2, k)); 
     DIR_err(k) = sqrt((actual_state(1, k) - sensor1_X(1,k))^2 + (actual_state(2, k) - sensor1_Y(1,k))^2);
