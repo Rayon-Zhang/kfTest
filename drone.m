@@ -183,8 +183,7 @@ R1 = diag([sensor1.X_noise, sensor1.Y_noise, sensor1.Z_noise, sensor1.Vx_noise, 
 R2 = diag([sensor2.X_noise, sensor2.Y_noise, sensor2.Z_noise, sensor2.Vx_noise, sensor2.Vy_noise, sensor2.Vz_noise]); % 测量噪音的协方差矩阵
 R3 = diag([sensor3.Z_noise]);
 
-P1 = 0.01 * eye(6); % 对估计均方误差矩阵Pk赋初值 
-P2 = 0.01 * eye(6);
+P = 0.01 * eye(6); % 对估计均方误差矩阵Pk赋初值 
 P3 = 1 * eye(1);
 
 C3 = [0, 0, 1, 0, 0, 0];
@@ -199,10 +198,15 @@ KF_State = [car.x0;
 KF_err  = zeros(1, ms);
 DIR_err = zeros(1, ms);
 for k = 1:ms
-    Sensor_Meas1 = [sensor1_X(1,k);sensor1_Y(1,k); sensor1_Z(1,k); sensor1_Vx(1,k);sensor1_Vy(1,k);sensor1_Vz(1,k)]; % 测量向量Zk  
-    [KF_State(:,k), P1]   = Track_KF(P1, A, C, Q, R1, KF_State(:,k), Sensor_Meas1);
-    Sensor_Meas2 = [sensor2_X(1,k);sensor2_Y(1,k);sensor2_Z(1,k);sensor2_Vx(1,k);sensor2_Vy(1,k);sensor2_Vz(1,k)];   
-    [KF_State(:,k), P2] = Track_KF(P2, A, C, Q, R2, KF_State(:,k), Sensor_Meas2);
+    [pred_state, P] = predict(P, A, Q, KF_State(:,k));
+    
+     % 测量向量Zk  
+    Sensor_Meas1 = [sensor1_X(1,k);sensor1_Y(1,k); sensor1_Z(1,k); sensor1_Vx(1,k); sensor1_Vy(1,k); sensor1_Vz(1,k)];
+    Sensor_Meas2 = [sensor2_X(1,k);sensor2_Y(1,k); sensor2_Z(1,k); sensor2_Vx(1,k); sensor2_Vy(1,k); sensor2_Vz(1,k)]; 
+    
+    [KF_State(:,k), P]   = update(P, C, Q, R1, pred_state, Sensor_Meas1);
+    [KF_State(:,k + 1), P] = update(P, C, Q, R2, KF_State(:,k), Sensor_Meas2);
+
     Sensor_Meas3 = [sensor3_Z(1,k)];
     [KF_State(:,k+1), P3] = Track_KF(P3, A, C3, Q, R3, KF_State(:,k), Sensor_Meas3);
 
