@@ -1,18 +1,31 @@
 %%
-% from：https://blog.csdn.net/weixin_40599145/article/details/113000157
+% kf applied in drone with alt assist
+% auther:zhangzhenning
 %%
 close all;
 clear;
 clc;
+
 rng(2);
 %% 参数初始化
-%参数
 car.x0   = -20;                    %car初始横向坐标
 car.v0_x = 15;                     %car初始横向速度
 car.y0   = 20;                     %car初始纵向坐标
 car.v0_y = 20;                     %car初始纵向速度
 car.z0   = 100;  
 car.v0_z = 0;
+
+% 实际上car运行过程中会有一些偏差，所以这里模拟了一些过程噪音
+car.x_noise   = 0.1;                % car运动的横向坐标偏差的方差
+car.y_noise   = 0.1;                % car运动的纵向坐标偏差的方差
+car.z_noise   = 0.1;                % car运动的纵向坐标偏差的方差
+car.v_x_noise = 0.1;                % car运动的横向速度偏差的方差
+car.v_y_noise = 0.1;                % car运动的纵向速度偏差的方差
+car.v_z_noise = 0.1;                % car运动的纵向速度偏差的方差
+
+%假设每次测量的时间是0.01s
+delta_t = 0.01;                      %单位  秒
+altAssist = 0;
 
 car.State = [car.x0; 
              car.y0;
@@ -21,17 +34,6 @@ car.State = [car.x0;
              car.v0_y;
              car.v0_z
              ];            %状态变量
-
-% 实际上car运行过程中会有一些偏差，所以这里模拟了一些过程噪音
-car.x_noise   = 0.1;                % car运动的横向坐标偏差的方差
-car.y_noise   = 0.1;                % car运动的纵向坐标偏差的方差
-car.z_noise   = 0.1;               % car运动的纵向坐标偏差的方差
-car.v_x_noise = 0.1;                % car运动的横向速度偏差的方差
-car.v_y_noise = 0.1;                % car运动的纵向速度偏差的方差
-car.v_z_noise = 0.1;               % car运动的纵向速度偏差的方差
-
-%假设每次测量的时间是0.01s
-delta_t = 0.01;                      %单位  秒
 
 %% 线性动态方程模型参数和观测方程
 A = [1,    0,    0,  delta_t,  0,    0; 
@@ -115,12 +117,12 @@ end
 %% GPS传感器2
 sensor2.cn0 = 30;
 
-sensor2.X_noise = 2;           % GPS的横向噪声方差
-sensor2.Y_noise = 2;           % GPS的纵向噪声方差
-sensor2.Z_noise = 2;           % GPS的纵向噪声方差
-sensor2.Vx_noise = 1;          % GPS的横向噪声方差
-sensor2.Vy_noise = 1;          % GPS的纵向噪声方差
-sensor2.Vz_noise = 1;          % GPS的纵向噪声方差
+sensor2.X_noise = 1;           % GPS的横向噪声方差
+sensor2.Y_noise = 1;           % GPS的纵向噪声方差
+sensor2.Z_noise = 1;           % GPS的纵向噪声方差
+sensor2.Vx_noise = 0.5;          % GPS的横向噪声方差
+sensor2.Vy_noise = 0.5;          % GPS的纵向噪声方差
+sensor2.Vz_noise = 0.5;          % GPS的纵向噪声方差
 
 sensor2_X = [];       % 存储GPS横向坐标测量值
 sensor2_Y = [];       % 存储GPS纵向坐标测量值
@@ -161,32 +163,33 @@ for k = 1:ms
 end
 
 %% 高度传感器
-sensor3.cn0 = 40;
-sensor3.Z_noise = 0.0001;           % GPS的纵向噪声方差
-sensor3_Z = [];                  % 存储GPS纵向坐标测量值
-sensor3.State = [car.x0; 
-                 car.y0; 
-                 car.z0;
-                 car.v0_x; 
-                 car.v0_y;
-                 car.v0_z];
-sensor3.Z = sensor3.State(3,1); 
-
-for k = 1:ms                           
-    car.State = actual_state(:, k);                             % 把真实航迹取出来
-    sensor3.Z = car.State(3,1);% + randn * sqrt(sensor3.Z_noise);
-    sensor3_Z = [sensor3_Z,sensor3.Z];  % 记录GPS的测量
+if altAssist == 1
+    sensor3.cn0 = 40;
+    sensor3.Z_noise = 0.00001;           % GPS的纵向噪声方差
+    sensor3_Z = [];                  % 存储GPS纵向坐标测量值
+    sensor3.State = [car.x0; 
+                     car.y0; 
+                     car.z0;
+                     car.v0_x; 
+                     car.v0_y;
+                     car.v0_z];
+    sensor3.Z = sensor3.State(3,1); 
+    
+    for k = 1:ms                           
+        car.State = actual_state(:, k);                             % 把真实航迹取出来
+        sensor3.Z = car.State(3,1);% + randn * sqrt(sensor3.Z_noise);
+        sensor3_Z = [sensor3_Z,sensor3.Z];  % 记录GPS的测量
+    end
+    C3 = [0, 0, 1, 0, 0, 0];
 end
 
 %% 参数设置
 R1 = diag([sensor1.X_noise, sensor1.Y_noise, sensor1.Z_noise, sensor1.Vx_noise, sensor1.Vy_noise, sensor1.Vz_noise]); % 测量噪音的协方差矩阵
 R2 = diag([sensor2.X_noise, sensor2.Y_noise, sensor2.Z_noise, sensor2.Vx_noise, sensor2.Vy_noise, sensor2.Vz_noise]); % 测量噪音的协方差矩阵
-R3 = diag([sensor3.Z_noise]);
-
+if altAssist == 1
+    R3 = diag([1000, 1000, sensor3.Z_noise, 1000, 1000, 1000]);
+end
 P = 0.01 * eye(6); % 对估计均方误差矩阵Pk赋初值 
-P3 = 1 * eye(1);
-
-C3 = [0, 0, 1, 0, 0, 0];
 
 %% 卡尔曼滤波估计最优状态
 KF_State = [car.x0; 
@@ -204,11 +207,13 @@ for k = 1:ms
     Sensor_Meas1 = [sensor1_X(1,k);sensor1_Y(1,k); sensor1_Z(1,k); sensor1_Vx(1,k); sensor1_Vy(1,k); sensor1_Vz(1,k)];
     Sensor_Meas2 = [sensor2_X(1,k);sensor2_Y(1,k); sensor2_Z(1,k); sensor2_Vx(1,k); sensor2_Vy(1,k); sensor2_Vz(1,k)]; 
     
-    [KF_State(:,k), P]   = update(P, C, Q, R1, pred_state, Sensor_Meas1);
-    [KF_State(:,k + 1), P] = update(P, C, Q, R2, KF_State(:,k), Sensor_Meas2);
-
-    Sensor_Meas3 = [sensor3_Z(1,k)];
-    [KF_State(:,k+1), P3] = Track_KF(P3, A, C3, Q, R3, KF_State(:,k), Sensor_Meas3);
+    [KF_State(:,k), P] = update(P, C, Q, R1, pred_state, Sensor_Meas1);
+    [KF_State(:,k), P] = update(P, C, Q, R2, KF_State(:,k), Sensor_Meas2);
+    if altAssist == 1
+        Sensor_Meas3 = [0; 0; sensor3_Z(1,k); 0; 0; 0];
+        [KF_State(:,k), P] =  AltAssist(P, C, Q, R3, KF_State(:,k), Sensor_Meas3);
+    end
+    KF_State(:,k + 1) = KF_State(:,k);
 
     KF_err(k) = norm(actual_state(1:3, k) - KF_State(1:3, k)); 
     DIR_err(k) = sqrt((actual_state(1, k) - sensor1_X(1,k))^2 + (actual_state(2, k) - sensor1_Y(1,k))^2 + (actual_state(3, k) - sensor1_Z(1,k))^2);
@@ -235,15 +240,22 @@ grid on
 % xlabel('time');ylabel('err');title('kf误差')
 
 figure,subplot(3,1,1)
-plot((KF_State(1,1:end-1) - actual_state(1,:)));title('x方向误差');
+plot((KF_State(1,1:end - 1) - actual_state(1,:)));title('x方向误差');
 subplot(3,1,2)
-plot((KF_State(2,1:end-1) - actual_state(2,:)));title('y方向误差');
+plot((KF_State(2,1:end - 1) - actual_state(2,:)));title('y方向误差');
 subplot(3,1,3)
-plot((KF_State(3,1:end-1) - actual_state(3,:)));title('z方向误差');
+plot((KF_State(3,1:end - 1) - actual_state(3,:)));title('z方向误差');
 
 %% 误差统计
 KF_err_sorted = sort(KF_err);
-disp('误差统计');
+disp('三维误差统计');
 disp(['mean: ',num2str(mean(KF_err_sorted)), ' m']);
 disp(['cep68: ', num2str(KF_err_sorted(ceil(length(KF_err_sorted) * 0.68))), ' m']);
 disp(['cep95: ', num2str(KF_err_sorted(ceil(length(KF_err_sorted) * 0.95))), ' m']);
+disp('高度误差统计');
+alt_err = sort(abs(KF_State(3,1:end-1) - actual_state(3,:)));
+disp(['mean: ',num2str(mean(alt_err)), ' m']);
+disp(['cep68: ', num2str(alt_err(ceil(length(alt_err) * 0.68))), ' m']);
+disp(['cep95: ', num2str(alt_err(ceil(length(alt_err) * 0.95))), ' m']);
+
+

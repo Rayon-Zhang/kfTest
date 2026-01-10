@@ -12,8 +12,8 @@ function [State, P] = update(P, H, Q, R, pred_state, Sensor_Meas)
 N = size(Q, 1); % 计算状态变量的个数
 innov = Sensor_Meas - H * pred_state;
 %% Update
-S = inv(H * P * H' + R);                               % 矩阵求逆
-K = P * H' * S;                                        % 计算卡尔曼增益
+S = (H * P * H' + R);                                  % 矩阵求逆
+K = P * H' / S;                                        % 计算卡尔曼增益
 State = pred_state + K * innov;    % 状态更新方程
 P = (eye(N) - K * H) * P;                              % 估计均方误差矩阵的更新，用于下一次迭代
 end
